@@ -15,7 +15,10 @@ class Analysis:
 
         self.kai = self._kai(x, y, yerr, model)
         self.kai2 = np.sum(self.kai**2)
-        self.kai2_dof = self.kai2 / (len(x) - model.n_params)
+        self.kai2_red = self.kai2 / (len(x) - model.n_params)
+
+    def __str__(self):
+        return '{}\nReduced chi^2: {:.2f}'.format(self.model, self.kai2_red)
 
     def plot(self, ax, ebar_args=None):
         kwargs = {
@@ -41,6 +44,19 @@ class Analysis:
         ax.plot(x, y_min, '--', **fmt)
         ax.plot(x, y_max, '--', **fmt)
 
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.legend(['Data', 'Fit', 'Bounds'])
+
+        return ax
+
+    def plot_chi(self, ax):
+        ax.plot(self.x, self.kai, '.')
+
+        ax.set_xlabel('x')
+        ax.set_ylabel('chi')
+        ax.set_title('Weighted Residuals')
+        
         return ax
 
     @staticmethod
@@ -76,6 +92,9 @@ class Model:
     @property
     def n_params(self):
         return len(self.params)
+
+    def __str__(self):
+        return 'params {} param errors {}'.format(self.params, self.param_errs)
 
     def __call__(self, x):
         return self.function(x, *self.params)
@@ -156,3 +175,26 @@ class FitLSQ:
     @staticmethod
     def Kai(x, y, yerr, fx):
         return ((y-fx(x))/yerr)
+
+    @staticmethod
+    def find_intersect(fx, value, guess, precision=1e-6):
+        step = 1
+
+        x = guess
+        while 1:
+            y = fx(x)
+            y2 = fx(x+step)
+
+            if y2-y < precision:
+                break
+
+
+            dy = (fx(x-step/2)-fx(x+step/2))/step
+            print(x, y, y2, dy)
+
+            x = (y2-y)/dy + x
+
+
+
+
+
