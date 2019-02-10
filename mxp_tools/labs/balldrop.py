@@ -1,6 +1,10 @@
 import numpy as np
 import pandas
 
+import matplotlib
+matplotlib.rcParams.update({
+    'font.size': 14, 'text.usetex': True})
+
 class BallDropLab:
 
     def __init__(self, d_height):
@@ -64,6 +68,8 @@ class BallDropLab:
 
         nylon_calib_stdev = np.std(calibration_data['nylon'])
         steel_calib_stdev = np.std(calibration_data['steel'])
+        print('nylon_calib_stdev', nylon_calib_stdev)
+        print('steel_calib_stdev', steel_calib_stdev)
 
         data['Nylon Uncertainty'] = np.maximum(
             nylon_std,

@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.stats
 
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
           '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
@@ -13,12 +14,20 @@ class Analysis:
         self.y = y
         self.yerr = yerr
 
+        self.dof = len(x) - model.n_params
         self.kai = self._kai(x, y, yerr, model)
         self.kai2 = np.sum(self.kai**2)
-        self.kai2_red = self.kai2 / (len(x) - model.n_params)
+        self.pte = scipy.stats.chi2.cdf(self.kai2, self.dof)
+
+    @property
+    def kai2_reduced(self):
+        return self.kai2 / self.dof
 
     def __str__(self):
-        return '{}\nReduced chi^2: {:.2f}'.format(self.model, self.kai2_red)
+        return ('{}\n' \
+                'Reduced chi^2: {:.2f}\n' \
+                'PTE: {:.4f}'.format(
+                    self.model, self.kai2_reduced, self.pte))
 
     def plot(self, ax, ebar_args=None):
         kwargs = {
@@ -46,6 +55,7 @@ class Analysis:
 
         ax.set_xlabel('x')
         ax.set_ylabel('y')
+        ax.set_title('Least Squares Fit')
         ax.legend(['Data', 'Fit', 'Bounds'])
 
         return ax
@@ -54,8 +64,17 @@ class Analysis:
         ax.plot(self.x, self.kai, '.')
 
         ax.set_xlabel('x')
-        ax.set_ylabel('chi')
+        ax.set_ylabel('$\chi$')
         ax.set_title('Weighted Residuals')
+        
+        return ax
+
+    def plot_chi2(self, ax):
+        ax.plot(self.x, self.kai**2, '.')
+
+        ax.set_xlabel('x')
+        ax.set_ylabel('$\chi^2$')
+        ax.set_title('Weighted Residuals Squared') 
         
         return ax
 
