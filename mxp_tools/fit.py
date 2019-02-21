@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.stats
+import scipy.optimize
 
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
           '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
@@ -18,6 +19,16 @@ class Analysis:
         self.kai = self._kai(x, y, yerr, model)
         self.kai2 = np.sum(self.kai**2)
         self.pte = scipy.stats.chi2.cdf(self.kai2, self.dof)
+
+    @classmethod
+    def new_2param(cls, x, y, yerr):
+        def fit(x, a, b):
+            return a*x+b
+        popt, pcov = scipy.optimize.curve_fit(fit, x, y, sigma=yerr)
+        perr = np.sqrt(np.diag(pcov))
+
+        model = Model(fit, popt, perr)
+        return cls(model, x, y, yerr)
 
     @property
     def kai2_reduced(self):
@@ -43,7 +54,7 @@ class Analysis:
         x = np.linspace(np.min(self.x), np.max(self.x), 100)
         y_min, y_max = self.model.bounds(x)
         y = self.model(x)
-        ax.plot(x, y, color=COLORS[0], alpha=0.8)
+        ax.plot(x, y, color=COLORS[0], alpha=1)
 
         fmt = {
             'alpha': 1,
@@ -99,6 +110,29 @@ class Analysis:
         eb = np.sqrt(sxx / Delta);
 
         return a, ea, b, eb
+
+class Value:
+    def __init__(self, value, err, unit=None):
+        self.value = value
+        self.err = err
+        self.unit = unit
+
+    def __str__(self):
+        return '{:.4e} +_ {:.4e} {}'.format(self.value, self.err, self.unit)
+
+    def __repr__(self):
+        return str(self)
+
+    def __call__(self):
+        return self.value
+
+    @property
+    def v(self):
+        return self.value
+
+    @property
+    def e(self):
+        return self.err
 
 
 class Model:
