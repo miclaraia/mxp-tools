@@ -49,25 +49,26 @@ class Analysis:
         if ebar_args:
             kwargs.update(ebar_args)
 
-        ax.errorbar(self.x, self.y, self.yerr, **kwargs)
+        ax.errorbar(self.x, self.y, self.yerr, label='Data', zorder=0, **kwargs)
 
         x = np.linspace(np.min(self.x), np.max(self.x), 100)
         y_min, y_max = self.model.bounds(x)
         y = self.model(x)
-        ax.plot(x, y, color=COLORS[0], alpha=1)
+        ax.plot(x, y, color=COLORS[0], alpha=1, zorder=1, label='Fit')
 
         fmt = {
             'alpha': 1,
             'color': COLORS[3],
             'linewidth': 0.7
         }
-        ax.plot(x, y_min, '--', **fmt)
+        ax.plot(x, y_min, '--', label='Bounds', **fmt)
         ax.plot(x, y_max, '--', **fmt)
 
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_title('Least Squares Fit')
-        ax.legend(['Data', 'Fit', 'Bounds'])
+        ax.grid()
+        ax.legend()
 
         return ax
 
@@ -77,6 +78,7 @@ class Analysis:
         ax.set_xlabel('x')
         ax.set_ylabel('$\chi$')
         ax.set_title('Weighted Residuals')
+        ax.grid()
         
         return ax
 
@@ -86,6 +88,7 @@ class Analysis:
         ax.set_xlabel('x')
         ax.set_ylabel('$\chi^2$')
         ax.set_title('Weighted Residuals Squared') 
+        ax.grid()
         
         return ax
 
