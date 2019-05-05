@@ -11,7 +11,7 @@ import matplotlib
 
 from mxp_tools.fit import Analysis, Value, Model
 matplotlib.rcParams.update({
-    'font.size': 14, 'text.usetex': True})
+    'font.size': 18, 'text.usetex': True})
 
 
 class VerdetLab:
@@ -36,12 +36,15 @@ class Verdet:
         self.angle = angle
 
     def __str__(self):
-        return 'verdet: {}'.format(self.get_verdet())
+        return 'Verdet constant\n' \
+               '---------------\n' \
+               'Slop: {}\n' \
+               'verdet: {}'.format(self.get_slope(), self.get_verdet())
 
     def get_verdet(self):
         m_water = self.water.get_slope()
         m_air = self.air.get_slope()
-        m = self._f_slope(m_water, m_air)
+        m = self.get_slope()
 
 
         gamma = self.magnet.get_gamma()
@@ -51,6 +54,11 @@ class Verdet:
         verdet = self._f_verdet(m, gamma, k)
 
         return verdet
+
+    def get_slope(self):
+        m_water = self.water.get_slope()
+        m_air = self.air.get_slope()
+        return self._f_slope(m_water, m_air)
 
     @staticmethod
     def _f_verdet(m, gamma, k):
@@ -81,7 +89,9 @@ class AngleCorrection:
         self.analysis = self._analysis()
 
     def __str__(self):
-        return 'Analysis\n' \
+        return 'Angle Calibration\n' \
+               '--------\n' \
+               'Analysis\n' \
                '--------\n' \
                '{}\n\n' \
                'k: {}'.format(self.analysis, self.get_k())
@@ -90,8 +100,8 @@ class AngleCorrection:
         m = np.abs(self.analysis.model.params[0])
         merr = self.analysis.model.param_errs[0]
         
-        v = 2/m
-        e = merr*2/m**2
+        v = 1/m
+        e = merr*1/m**2
 
         return Value(v, e)
 
@@ -104,14 +114,13 @@ class AngleCorrection:
         return analysis
 
     def _f_phi_measured(self, dv, va):
-        v = dv.v/(2*va.v-dv.v)
-        e = [(dv.e*(2*va.v/(2*va.v-dv.v)**2))**2,
-             (va.e*(2*dv.v/(2*va.v-dv.v)**2))**2]
+        v = 1/2 * dv.v/(2*va.v-dv.v)
+        e = [1/4 * (dv.e*(2*va.v/(2*va.v-dv.v)**2))**2,
+             1/4 * (va.e*(2*dv.v/(2*va.v-dv.v)**2))**2]
 
         return Value(v, np.sqrt(sum(e)))
 
     def plot(self, fig):
-        print(self.analysis)
         fig.suptitle('Angle Calibration')
         ax = fig.add_subplot(121)
         self.analysis.plot(ax)
@@ -152,7 +161,9 @@ class Magnet:
         self.analysis = self._analysis()
 
     def __str__(self):
-        return 'Analysis\n' \
+        return 'Magnet:\n' \
+               '--------\n' \
+               'Analysis\n' \
                '--------\n' \
                '{}\n\n' \
                'gamma: {}'.format(self.analysis, self.get_gamma())
@@ -205,7 +216,6 @@ class Magnet:
         return Value(v, e)
 
     def plot(self, fig):
-        print(self.analysis)
         fig.suptitle('Magnetic Field Calibration')
         ax = fig.add_subplot(121)
         self.analysis.plot(ax)
@@ -254,10 +264,16 @@ class PhiSample:
         self.analysis = self._analysis()
 
     def __str__(self):
-        return 'Analysis\n' \
+        return 'Sample {}\n' \
+               '--------\n' \
+               'Analysis\n' \
                '--------\n' \
                '{}\n\n' \
-               'slope: {}'.format(self.analysis, self.get_slope())
+               'slope: {}\n' \
+               'err: {:.4e}' \
+               .format(
+                    self.name, self.analysis, self.get_slope(),
+                    self.phi_err[0])
 
     def __repr__(self):
         return str(self)
