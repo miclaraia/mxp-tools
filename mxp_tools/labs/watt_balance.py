@@ -23,6 +23,7 @@ class ForceMode:
 
         self.raw_data = self._load_raw(data_file)
 
+        self.analysis = None
         self.I = None
         self.mg = None
 
@@ -50,16 +51,33 @@ class ForceMode:
 
     @staticmethod
     def _get_I(raw_data):
-        I1 = raw_data['I1']
-        I2 = raw_data['I2']
+        I1 = np.mean(raw_data[['I1', 'I3']], axis=1)
+        I2 = np.mean(raw_data[['I2', 'I4']], axis=1)
 
-        I1err = raw_data['I1 err']
-        I2err = raw_data['I2 err']
+        I1err = np.std(raw_data[['I1', 'I3']], ddof=1, axis=1)
+        I2err = np.std(raw_data[['I2', 'I4']], ddof=1, axis=1)
 
-        I = I1 + I2
-        Ierr = np.sqrt(I1err**2 + I2err**2)
+        I1err = np.max([I1err, np.ones_like(I1)*0.01], axis=0)
+        I2err = np.max([I2err, np.ones_like(I2)*0.01], axis=0)
+        # I1err = np.sqrt(np.sum(raw_data[['I1 err', 'I3 err']], axis=1))
+        # I2err = np.sqrt(np.sum(raw_data[['I2 err', 'I4 err']], axis=1))
 
+        I = I2 - I1
+        Ierr = np.sqrt(I1err**2+I2err**2)
         return Value(I, Ierr)
+
+#     @staticmethod
+#     def _get_I(raw_data):
+#         I1 = raw_data['I1']
+#         I2 = raw_data['I2']
+# 
+#         I1err = raw_data['I1 err']
+#         I2err = raw_data['I2 err']
+# 
+#         I = I1 + I2
+#         Ierr = np.sqrt(I1err**2 + I2err**2)
+# 
+#         return Value(I, Ierr)
 
     @staticmethod
     def _get_m(raw_data):
@@ -148,12 +166,12 @@ class VelocityModeData:
         self.stage1 = xy.copy()
 
         shift, corr = self._data_correlation(xy)
-        print('shift: {}'.format(shift))
+        # print('shift: {}'.format(shift))
         self.shift = shift
         self.corr_data = corr
 
         self.stage2 = self._data_shift(xy, shift)
-        self.analysis = self._analysis(xy)
+        self.analysis = self._analysis(self.stage2)
         # self.slope = self.regress(self.stage2)
 
     @property
@@ -177,9 +195,9 @@ class VelocityModeData:
             self._data_match_time(data)
 
         position = position[position_i]
-        print(position)
+        # print(position)
         position /= 1000
-        print(position)
+        # print(position)
         voltage = voltage[voltage_i]
 
         return np.array([position, voltage]).T, np.array(position_t)[position_i]
@@ -248,24 +266,27 @@ class VelocityModeData:
         return np.array([x, y]).T
 
     def _velocity_savgol(self, x):
-        print(x)
-        dx = savgol_filter(
+        # print(x)
+        return self._data_savgol(x, deriv=1)
+
+    def _data_savgol(self, x, deriv=1):
+        return savgol_filter(
             x,
             window_length=self.savgol_window,
             polyorder=self.savgol_poly,
-            deriv=1,
+            deriv=deriv,
             delta=0.01)
-        return dx
 
-    def _velocity_diff(self, xy, xt):
-        x = xy[:,0]
+    def _velocity_diff(self, x, xt):
+        # x = xy[:,0]
         dx = np.zeros_like(x)
         for i in np.arange(1, x.shape[0]-1):
             dt = abs((xt[i+1]-xt[i-1]).total_seconds())
             dx[i] = (x[i+1]-x[i-1])/dt
 
-        dx = dx[1:-1]
         # dx = dx[1:-1]/1000 # mm/s->m/s
+        return dx
+        dx = dx[1:-1]
         return np.array([dx, xy[1:-1,1].copy()]).T
 
     @staticmethod
@@ -347,16 +368,16 @@ class VelocityMode:
         ax.set_title(title)
 
     @staticmethod
-    def plot_time_series(xy, ax, offset=500):
+    def plot_time_series(xy, ax, offset=500, legend_loc=None):
         i = np.arange(min(xy.shape[0], offset))/100
-        ax.plot(i, xy[:offset,0])
-        ax.plot(i, xy[:offset,1])
+        ax.plot(i, xy[:offset,0], alpha=1, label='Velocity')
+        ax.plot(i, xy[:offset,1], alpha=0.5, label='Voltage')
 
         ax.set_xlabel('time (s)')
-        ax.legend(['Velocity (m/s)', 'Voltage (V)'])
+        ax.legend(loc=legend_loc)
 
     def plot_xy_with_regression(self, xy, ax, slopes=None):
-        self.data.analysis.plot(ax)
+        self.data.analysis.plot(ax, plot_ebars=False)
 #         self.scatter(xy, ax)
 #         
 #         result = self.data.regress(xy)
