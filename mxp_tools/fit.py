@@ -1,3 +1,4 @@
+import matplotlib
 import numpy as np
 import scipy.stats
 import scipy.optimize
@@ -21,13 +22,27 @@ class Analysis:
         self.pte = scipy.stats.chi2.cdf(self.kai2, self.dof)
 
     @classmethod
+    def new(cls, x, y, yerr, fit, **kwargs):
+        popt, pcov = scipy.optimize.curve_fit(fit, x, y, sigma=yerr)
+        perr = np.sqrt(np.diag(pcov))
+        model = Model(fit, popt, perr, **kwargs)
+
+        return Analysis(model, x, y, yerr)
+
+    @classmethod
     def new_2param(cls, x, y, yerr):
         def fit(x, a, b):
             return a*x+b
+
+        def fit_err(x, params, param_errs):
+            return np.sqrt(np.sum([
+                (x*param_errs[0])**2,
+                (param_errs[1])**2
+            ]))
         popt, pcov = scipy.optimize.curve_fit(fit, x, y, sigma=yerr)
         perr = np.sqrt(np.diag(pcov))
 
-        model = Model(fit, popt, perr)
+        model = Model(fit, popt, perr, error_function=fit_err)
         return cls(model, x, y, yerr)
 
     @property
@@ -40,16 +55,25 @@ class Analysis:
                 'PTE: {:.4f}'.format(
                     self.model, self.kai2_reduced, self.pte))
 
-    def plot(self, ax, ebar_args=None):
-        kwargs = {
-            'fmt': '.',
-            'capsize': 5,
-            'color': COLORS[0]
-        }
-        if ebar_args:
-            kwargs.update(ebar_args)
+    def plot(self, ax, ebar_args=None, plot_ebars=True, plot_bounds=True):
+        kwargs = {}
+        if plot_ebars:
+            kwargs.update({
+                'fmt': '.',
+                'capsize': 5,
+                'color': COLORS[0]
+            })
+            if ebar_args:
+                kwargs.update(ebar_args)
 
-        ax.errorbar(self.x, self.y, self.yerr, label='Data', zorder=0, **kwargs)
+            ax.errorbar(self.x, self.y, self.yerr,
+                        label='Data', zorder=0, **kwargs)
+        else:
+            kwargs.update({
+                'alpha': 0.8,
+                's': 1
+            })
+            ax.scatter(self.x, self.y, label='Data', zorder=0, **kwargs)
 
         x = np.linspace(np.min(self.x), np.max(self.x), 100)
         y_min, y_max = self.model.bounds(x)
@@ -61,8 +85,13 @@ class Analysis:
             'color': COLORS[3],
             'linewidth': 0.7
         }
-        ax.plot(x, y_min, '--', label='Bounds', **fmt)
-        ax.plot(x, y_max, '--', **fmt)
+        if plot_bounds:
+            if matplotlib.rcParams['text.usetex']:
+                label = r'$1\sigma$ Bounds'
+            else:
+                label = r'$1\sigma$ Bounds'
+            ax.plot(x, y_min, '--', label=label, **fmt)
+            ax.plot(x, y_max, '--', **fmt)
 
         ax.set_xlabel('x')
         ax.set_ylabel('y')
@@ -121,7 +150,10 @@ class Value:
         self.unit = unit
 
     def __str__(self):
-        return '{:.4e} +_ {:.4e} {}'.format(self.value, self.err, self.unit)
+        if self.err:
+            return '{:.4e} +_ {:.4e} {}'.format(self.value, self.err, self.unit)
+        else:
+            return '{:.4e} {}'.format(self.value, self.unit)
 
     def __repr__(self):
         return str(self)
@@ -137,11 +169,15 @@ class Value:
     def e(self):
         return self.err
 
+    def eval(self, value):
+        return (self.v-value)/value, (self.v-value)/self.err
+
 
 class Model:
 
-    def __init__(self, function, params, param_errs):
+    def __init__(self, function, params, param_errs, error_function=None):
         self.function = function
+        self.error_function = error_function
         self.params = params
         self.param_errs = param_errs
 
@@ -154,6 +190,14 @@ class Model:
 
     def __call__(self, x):
         return self.function(x, *self.params)
+
+    def get_value(self, x):
+        v = self.function(x, *self.params)
+        if self.error_function is not None:
+            e = self.error_function(x, self.params, self.param_errs)
+        else:
+            e = None
+        return Value(v, e)
 
     def bounds(self, x):
         params = self.params
@@ -251,6 +295,7 @@ class FitLSQ:
             x = (y2-y)/dy + x
 
 
-
-
-
+def weighted_mean(x, xerr):
+    v = np.sum(x/xerr**2)/np.sum(1/xerr**2)
+    e = 1/np.sum(1/xerr**2)
+    return Value(v, e)
