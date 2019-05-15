@@ -55,30 +55,40 @@ class Analysis:
                 'PTE: {:.4f}'.format(
                     self.model, self.kai2_reduced, self.pte))
 
-    def plot(self, ax, ebar_args=None, plot_ebars=True, plot_bounds=True):
+    def plot(self, ax, ebar_args=None, plot_ebars=True, plot_bounds=True,
+             line_color=False, alpha=None, sample_size=None):
+
+        xy = np.array([self.x, self.y, self.yerr]).T
+        if xy.shape[0] > 100:
+            i = np.random.choice(np.arange(0, xy.shape[0]), sample_size or 100)
+            xy = xy[i,:]
         kwargs = {}
         if plot_ebars:
             kwargs.update({
                 'fmt': '.',
                 'capsize': 5,
-                'color': COLORS[0]
+                'color': COLORS[0],
+                'alpha': alpha or 1
             })
             if ebar_args:
                 kwargs.update(ebar_args)
 
-            ax.errorbar(self.x, self.y, self.yerr,
+            ax.errorbar(xy[:,0], xy[:,1], xy[:,2],
                         label='Data', zorder=0, **kwargs)
         else:
             kwargs.update({
-                'alpha': 0.8,
-                's': 1
+                'alpha': alpha or 0.8,
+                's': 1,
+                'color': COLORS[0]
             })
             ax.scatter(self.x, self.y, label='Data', zorder=0, **kwargs)
 
         x = np.linspace(np.min(self.x), np.max(self.x), 100)
         y_min, y_max = self.model.bounds(x)
         y = self.model(x)
-        ax.plot(x, y, color=COLORS[0], alpha=1, zorder=1, label='Fit')
+
+        line_color = {True: 1, False: 0}[line_color]
+        ax.plot(x, y, color=COLORS[line_color], alpha=1, zorder=1, label='Fit')
 
         fmt = {
             'alpha': 1,
@@ -144,22 +154,57 @@ class Analysis:
         return a, ea, b, eb
 
 class Value:
-    def __init__(self, value, err, unit=None):
+    def __init__(self, value, err, unit=None, fmt=None):
         self.value = value
         self.err = err
         self.unit = unit
 
-    def __str__(self):
-        if self.err:
-            return '{:.4e} +_ {:.4e} {}'.format(self.value, self.err, self.unit)
+        self.fmt = None
+
+    @property
+    def _round(self):
+        return -int(np.floor(np.log10(self.err)))
+
+    @property
+    def _fmt(self):
+        args = np.array([self.value, self.err])
+        if self.fmt is not None:
+            return self.fmt.format(*args, self.unit)
+        i = self._round + 1
+        if np.abs(i) <= 3:
+            args = (*np.round(args, i), self.unit)
+            fmt =  '{:.%df} +- {:.%df} {}' % (i,i)
+            return fmt.format(*args)
         else:
-            return '{:.4e} {}'.format(self.value, self.unit)
+            if i < 0:
+                i = -i+1
+            else:
+                i = -i+2
+            args = (*args/10**(i), i, self.unit)
+            fmt = '({:.2f} +- {:.2f})E{:+d} {}'
+            return fmt.format(*args)
+
+
+    def __str__(self):
+        return self._fmt
+        # args = (*np.round([self.value, self.err], self._round),
+                # self.unit or '')
+        # return self.fmt.format(*args)
+        # if self.err:
+            # return '{} +_ {} {}'.format(self.value, self.err, self.unit)
+        # else:
+            # return '{:.4e} {}'.format(self.value, self.unit)
 
     def __repr__(self):
         return str(self)
 
     def __call__(self):
         return self.value
+
+    def __mul__(self, b):
+        self.value * b
+        self.err * b
+        return self
 
     @property
     def v(self):

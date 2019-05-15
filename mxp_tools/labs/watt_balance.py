@@ -25,14 +25,14 @@ class ForceMode:
 
         self.analysis = None
         self.I = None
-        self.mg = None
+        self.m = None
 
     def process(self):
         raw_data = self.raw_data
         self.I = self._get_I(raw_data)
-        self.mg = self._get_mg(raw_data, self.g)
+        self.m = self._get_m(raw_data)
 
-        x = self.mg.value
+        x = self.m.value
         y = self.I.value
         yerr = self.I.err
 
@@ -40,7 +40,7 @@ class ForceMode:
 
     @property
     def xye(self):
-        return self.I, self.mg.value, self.mg.err
+        return self.I, self.m.value, self.m.err
 
     @staticmethod
     def _load_raw(data_file):
@@ -83,16 +83,16 @@ class ForceMode:
     def _get_m(raw_data):
         return Value(raw_data['mass'], 0.0001)
 
-    @classmethod
-    def _get_mg(cls, raw_data, g):
-        m = cls._get_m(raw_data)
-        m, merr = m.value, m.err
-        g, gerr = g.value, g.err
+    # @classmethod
+    # def _get_mg(cls, raw_data, g):
+        # m = cls._get_m(raw_data)
+        # m, merr = m.value, m.err
+        # g, gerr = g.value, g.err
 
-        mg = m*g
-        mgerr = np.sqrt((m*gerr)**2+(g*merr)**2)
+        # mg = m*g
+        # mgerr = np.sqrt((m*gerr)**2+(g*merr)**2)
 
-        return Value(mg, mgerr)
+        # return Value(mg, mgerr)
 
     @staticmethod
     def _analysis(x, y, yerr):
@@ -106,16 +106,20 @@ class ForceMode:
 
     def get_BL(self):
         slope = self.get_slope()
-        bl = 1/slope.value
-        blerr = slope.value/bl**2
-        return Value(bl, blerr)
+        g = self.g
+
+        bl = g.value/slope.value
+        blerr = np.sqrt((g.err/slope.value)**2
+                        + (slope.err*g.value/slope.value**2)**2)
+        return Value(bl, blerr, 'kgm/s^2A')
 
     def plot(self, fig):
         fig.suptitle('Force')
         ax = fig.add_subplot(121)
         self.analysis.plot(ax)
 
-        ax.set_xlabel('')
+        ax.set_xlabel('Mass*g ($\\mathrm{g*m/s^2}$)')
+        ax.set_ylabel('Current (mA)')
 
         ax = fig.add_subplot(122)
         self.analysis.plot_chi(ax)
@@ -196,7 +200,7 @@ class VelocityModeData:
 
         position = position[position_i]
         # print(position)
-        position /= 1000
+        # position /= 1000
         # print(position)
         voltage = voltage[voltage_i]
 
@@ -305,10 +309,15 @@ class VelocityModeData:
         return max_corr, (i, corr)
 
     def _uncertainty(self, x):
-        window = self.savgol_window
+        return np.ones_like(x)*np.mean(x)*10
+        window = self.savgol_window*2
         xe = np.zeros_like(x)
         for i in np.arange(window, x.shape[0] - window):
             xe[i] = np.std(x[i-window:i+window], ddof=1)
+        xe[:window] = xe[window+1]
+        xe[-window:] = xe[-window-1]
+        print(xe)
+        return xe*10
         return np.mean(xe[window:-window])*np.ones_like(x)
 
     def fit_chi2(self, xy):
@@ -339,6 +348,14 @@ class VelocityModeData:
         e = self.analysis.model.param_errs[0]
         return Value(v, e)
 
+    def get_BL(self):
+        bl = self.get_slope()
+        bl.value *= 1000
+        bl.err *= 1000
+        bl.unit = 'V s/m'
+
+        return bl
+
 
 class VelocityMode:
 
@@ -354,7 +371,7 @@ class VelocityMode:
     def summary(self):
         data = {
             'shift': self.data.shift,
-            'mean_pos': self.data.mean_position*1000,
+            'mean_pos': self.data.mean_position,
             'slope': self.data.get_slope()
         }
         return data
